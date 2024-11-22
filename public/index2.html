@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhatsApp Web Client</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        #qrCode, #mainForm, #userIdForm { display: none; margin-bottom: 20px; }
+        input[type="text"], input[type="file"], textarea { width: 100%; margin-bottom: 10px; padding: 8px; }
+        button { padding: 10px 15px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>WhatsApp Messaging</h1>
+
+    <div id="userIdForm">
+        <h2>Enter User ID</h2>
+        <input type="text" id="userId" placeholder="Enter your user ID">
+        <button onclick="setUserId()">Set User ID</button>
+    </div>
+
+    <div id="qrCode">
+        <p>Please scan the QR code to authenticate:</p>
+        <img id="qrImage" src="" alt="QR Code">
+    </div>
+
+    <div id="mainForm">
+        <form id="sendMessageForm">
+            <h2>Send Message</h2>
+            <label for="number">Phone Number (Include Country Code):</label>
+            <input type="text" id="number" name="number" required>
+
+            <label for="message">Message:</label>
+            <textarea id="message" name="message" required></textarea>
+
+            <button type="button" onclick="sendMessage()">Send Text Message</button>
+        </form>
+
+        <form id="sendImageForm" enctype="multipart/form-data">
+            <h2>Send Image</h2>
+            <label for="imageNumber">Phone Number (Include Country Code):</label>
+            <input type="text" id="imageNumber" name="number" required>
+
+            <label for="caption">Caption:</label>
+            <textarea id="caption" name="caption"></textarea>
+
+            <label for="image">Choose Image:</label>
+            <input type="file" id="image" name="media" accept="image/*" required>
+
+            <button type="button" onclick="sendMedia()">Send Image</button>
+        </form>
+    </div>
+
+    <script>
+        let currentUserId = '';
+
+        function initializeApp() {
+            currentUserId = localStorage.getItem('whatsappClientId');
+            if (currentUserId) {
+                checkStatus();
+            } else {
+                document.getElementById('userIdForm').style.display = 'block';
+            }
+        }
+
+        function setUserId() {
+            currentUserId = document.getElementById('userId').value;
+            if (currentUserId) {
+                localStorage.setItem('whatsappClientId', currentUserId);
+                document.getElementById('userIdForm').style.display = 'none';
+                checkStatus();
+            }
+        }
+
+        function checkStatus() {
+            fetch('/api/status', {
+                headers: { 'user-id': currentUserId }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.ready) {
+                    document.getElementById('mainForm').style.display = 'block';
+                    document.getElementById('qrCode').style.display = 'none';
+                } else if (data.qr) {
+                    document.getElementById('qrCode').style.display = 'block';
+                    document.getElementById('qrImage').src = data.qr;
+                    setTimeout(checkStatus, 5000); // Check again in 5 seconds
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert("Error checking status. Please try again.");
+            });
+        }
+
+        function sendMessage() {
+            const number = document.getElementById('number').value;
+            const message = document.getElementById('message').value;
+            fetch('/api/send', {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'user-id': currentUserId
+                },
+                body: JSON.stringify({ number, message })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert("Message sent successfully!");
+                } else {
+                    alert("Failed to send message.");
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert("Error sending message.");
+            });
+        }
+
+        function sendMedia() {
+            const formData = new FormData(document.getElementById('sendImageForm'));
+            fetch('/api/send-media', {
+                method: 'POST',
+                headers: { 'user-id': currentUserId },
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.message) {
+                    console.log(data.message);
+                    alert("Media sent successfully!");
+                } else {
+                    alert("Failed to send media.");
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert("Error sending media.");
+            });
+        }
+
+        // Initialize the app when the page loads
+        window.onload = initializeApp;
+    </script>
+</body>
+</html>

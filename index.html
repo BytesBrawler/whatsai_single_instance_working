@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhatsApp Web Client</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        #qrCode, #mainForm { display: none; margin-bottom: 20px; }
+        input[type="text"], input[type="file"], textarea { width: 100%; margin-bottom: 10px; padding: 8px; }
+        button { padding: 10px 15px; cursor: pointer; }
+
+        /* Circular progress bar */
+        .spinner {
+            display: block;
+            margin: 20px auto;
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(0, 0, 0, 0.2);
+            border-top-color: #333;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <h1>WhatsApp Messaging</h1>
+
+    <!-- Loading Spinner -->
+    <div id="loadingSpinner" class="spinner"></div>
+
+    <div id="qrCode">
+        <p>Please scan the QR code to authenticate:</p>
+        <img id="qrImage" src="" alt="QR Code">
+    </div>
+
+    <div id="mainForm">
+        <form id="sendMessageForm">
+            <h2>Send Message</h2>
+            <label for="number">Phone Number (Include Country Code):</label>
+            <input type="text" id="number" name="number" required>
+
+            <label for="message">Message:</label>
+            <textarea id="message" name="message" required></textarea>
+
+            <button type="button" onclick="sendMessage()">Send Text Message</button>
+        </form>
+
+        <form id="sendImageForm" enctype="multipart/form-data">
+            <h2>Send Image</h2>
+            <label for="imageNumber">Phone Number (Include Country Code):</label>
+            <input type="text" id="imageNumber" name="number" required>
+
+            <label for="caption">Caption:</label>
+            <textarea id="caption" name="caption"></textarea>
+
+            <label for="image">Choose Image:</label>
+            <input type="file" id="image" name="media" accept="image/*" required>
+
+            <button type="button" onclick="sendMedia()">Send Image</button>
+        </form>
+    </div>
+
+    <script>
+        // Function to check status and toggle QR code or main form
+        function checkStatus() {
+            fetch('/status')
+                .then(response => response.json())
+                .then(data => {
+                    console.log("currently checking statius");
+                    if (data.ready) {
+                        // Hide spinner, QR code, and show the main form
+                        document.getElementById('loadingSpinner').style.display = 'none';
+                        document.getElementById('qrCode').style.display = 'none';
+                        document.getElementById('mainForm').style.display = 'block';
+                    } else if (data.qr) {
+                        // Hide spinner, show QR code, and hide main form
+                        document.getElementById('loadingSpinner').style.display = 'none';
+                        document.getElementById('qrCode').style.display = 'block';
+                        document.getElementById('qrImage').src = data.qr;
+                        document.getElementById('mainForm').style.display = 'none';
+                    } else {
+                        // Show spinner and retry status check
+                        document.getElementById('loadingSpinner').style.display = 'block';
+                        document.getElementById('qrCode').style.display = 'none';
+                        document.getElementById('mainForm').style.display = 'none';
+                        setTimeout(checkStatus, 2000); // Retry every 2 seconds
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert("Error fetching status. Retrying...");
+                    setTimeout(checkStatus, 5000); // Retry every 5 seconds on error
+                });
+        }
+
+        // Start the status check
+        checkStatus();
+
+        function sendMessage() {
+            const number = document.getElementById('number').value;
+            const message = document.getElementById('message').value;
+            fetch('/send', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ number, message })
+            });
+        }
+
+        function sendMedia() {
+            const formData = new FormData(document.getElementById('sendImageForm'));
+            fetch('/send-media', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.message) {
+                    console.log(data.message);
+                    alert("Media sent successfully!");
+                } else {
+                    alert("Failed to send media.");
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert("Error sending media.");
+            });
+        }
+    </script>
+</body>
+</html>
